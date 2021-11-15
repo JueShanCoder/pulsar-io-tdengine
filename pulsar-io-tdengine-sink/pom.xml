@@ -2,18 +2,14 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>pulsar-io-tdengine</artifactId>
+        <groupId>org.apache.pulsar</groupId>
+        <version>2.8.0</version>
+    </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <name>Pulsar-IO :: TDengine</name>
-
-    <groupId>org.apache.pulsar</groupId>
-    <artifactId>pulsar-io-tdengine</artifactId>
-    <packaging>pom</packaging>
-    <version>2.8.0</version>
-    <modules>
-        <module>pulsar-io-tdengine-source</module>
-        <module>pulsar-io-tdengine-sink</module>
-    </modules>
+    <artifactId>pulsar-io-tdengine-sink</artifactId>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
