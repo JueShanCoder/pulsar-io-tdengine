@@ -1,7 +1,7 @@
+package org.apache.pulsar.io.jdbc;
+
 import org.apache.pulsar.io.core.annotations.Connector;
 import org.apache.pulsar.io.core.annotations.IOType;
-import org.apache.pulsar.io.jdbc.BaseJdbcAutoSchemaSink;
-import org.apache.pulsar.io.jdbc.JdbcSinkConfig;
 
 @Connector(
         name = "jdbc-tdengine",
