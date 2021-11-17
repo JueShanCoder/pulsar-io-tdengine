@@ -1,14 +1,70 @@
 package org.apache.pulsar.io.jdbc;
 
+import com.taosdata.jdbc.TSDBConnection;
+import com.taosdata.jdbc.TSDBDriver;
+import com.taosdata.jdbc.TSDBResultSet;
+import com.taosdata.jdbc.TSDBSubscribe;
 import org.apache.pulsar.io.core.annotations.Connector;
 import org.apache.pulsar.io.core.annotations.IOType;
 
-@Connector(
-        name = "jdbc-tdengine",
-        type = IOType.SINK,
-        help = "A simple JDBC sink for TDengine that writes pulsar messages to a database table",
-        configClass = JdbcSinkConfig.class
-)
-public class TDengineJdbcAutoSchemaSink extends BaseJdbcAutoSchemaSink {
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
+//@Connector(
+//        name = "jdbc-tdengine",
+//        type = IOType.SINK,
+//        help = "A simple JDBC sink for TDengine that writes pulsar messages to a database table",
+//        configClass = JdbcSinkConfig.class
+//)
+public class TDengineJdbcAutoSchemaSink {
+//        extends BaseJdbcAutoSchemaSink {
+
+    private static final String topic = "topic-meter-current-bg-10";
+    private static final String sql = "select * from meters ";
+
+    public static void main(String[] args) {
+        Connection connection = null;
+        TSDBSubscribe subscribe = null;
+        try {
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            String jdbcUrl = "jdbc:TAOS://127.0.0.1:6030/power?user=root&password=taosdata";
+            connection = DriverManager.getConnection(jdbcUrl, properties);
+            subscribe = ((TSDBConnection) connection).subscribe(topic, sql, true); // 创建订阅
+            int count = 0;
+            for(;;){
+                TimeUnit.SECONDS.sleep(1); // 等待1秒，避免频繁调用 consume，给服务端造成压力
+                TSDBResultSet resultSet = subscribe.consume(); // 消费数据
+                if (resultSet == null) {
+                    continue;
+                }
+                ResultSetMetaData metaData = resultSet.getMetaData();
+                while (resultSet.next()) {
+                    int columnCount = metaData.getColumnCount();
+                    for (int i = 1; i <= columnCount; i++) {
+                        System.out.print(metaData.getColumnLabel(i) + ": " + resultSet.getString(i) + "\t");
+                    }
+                    System.out.println();
+                    count++;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (null != subscribe)
+                    subscribe.close(true); // 关闭订阅
+                if (connection != null)
+                    connection.close();
+            } catch (SQLException throwables) {
+                throwables.printStackTrace();
+            }
+        }
+    }
 }
