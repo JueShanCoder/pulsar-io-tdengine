@@ -10,6 +10,13 @@ import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.TSDBResultSet;
 import com.taosdata.jdbc.TSDBSubscribe;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.api.Schema;
+import org.apache.pulsar.client.api.schema.GenericRecord;
+import org.apache.pulsar.client.api.schema.GenericSchema;
+import org.apache.pulsar.client.api.schema.RecordSchemaBuilder;
+import org.apache.pulsar.client.api.schema.SchemaBuilder;
+import org.apache.pulsar.common.schema.SchemaInfo;
+import org.apache.pulsar.common.schema.SchemaType;
 import org.apache.pulsar.io.core.PushSource;
 import org.apache.pulsar.io.core.SourceContext;
 
@@ -30,10 +37,15 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
     private final Thread.UncaughtExceptionHandler handler = (t, e) -> log.error("[{}] parse events has an error", t.getName(), e);
     private Connection connection;
     private TSDBSubscribe subscribe;
-    private Snowflake snowflake;
+    protected Snowflake snowflake;
+
+    protected RecordSchemaBuilder recordSchemaBuilder;
+    protected GenericSchema<GenericRecord> schema;
 
     protected static final String ACTION = "ACTION";
     protected static final String INSERT = "INSERT";
+
+    protected String topicName;
 
     @Override
     public void open(Map<String, Object> config, SourceContext sourceContext) throws Exception {
@@ -91,7 +103,8 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
             connection = dataSource.getConnection();
             // create TDengine subscribe
             TSDBConnection unwrap = connection.unwrap(TSDBConnection.class);
-            subscribe = unwrap.subscribe(getTopicName(), tDengineSourceConfig.getSql(), true);
+            topicName = getTopicName();
+            subscribe = unwrap.subscribe(topicName, tDengineSourceConfig.getSql(), true);
         } catch (SQLException e) {
             log.error("Failed to get a connection from the connection pool.",e);
             throw new IllegalArgumentException("Failed to get a connection from the connection pool.");
