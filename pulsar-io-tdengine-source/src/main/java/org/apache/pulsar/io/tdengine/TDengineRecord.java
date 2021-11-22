@@ -3,11 +3,13 @@ package org.apache.pulsar.io.tdengine;
 import lombok.Data;
 import org.apache.pulsar.functions.api.Record;
 
-import java.util.Optional;
-
 @Data
-public class TDengineRecord implements Record<byte[]> {
+public class TDengineRecord<V> implements Record<V>  {
 
-    private final Optional<String> key;
-    private final byte[] value;
+    private V record;
+
+    @Override
+    public V getValue() {
+        return record;
+    }
 }
