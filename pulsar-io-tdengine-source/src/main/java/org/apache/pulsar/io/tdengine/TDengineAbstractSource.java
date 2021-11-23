@@ -44,6 +44,7 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
 
     protected static final String ACTION = "ACTION";
     protected static final String INSERT = "INSERT";
+    protected static final String TARGET = "TARGET";
 
     protected String topicName;
 
@@ -136,6 +137,8 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
                     log.info("TDengineAbstractSource got message {}",new ObjectMapper().writeValueAsString(columnMap));
                     TDengineRecord<V> tDengineRecord = new TDengineRecord<>();
                     tDengineRecord.setRecord(extractValue(columnMap));
+                    tDengineRecord.getProperties().put(TARGET, "power.meters");
+                    tDengineRecord.getProperties().put(ACTION, INSERT);
                     consume(tDengineRecord);
                 }
             }

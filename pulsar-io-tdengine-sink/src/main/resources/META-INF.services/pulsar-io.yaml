@@ -19,4 +19,5 @@
 
 name: jdbc-tdengine
 description: JDBC sink for TDengine
-sinkClass: org.apache.pulsar.io.jdbc.TDengineJdbcAutoSchemaSink
+sinkClass: org.apache.pulsar.io.jdbc.JdbcSink
+sinkConfigClass: org.apache.pulsar.io.jdbc.JdbcSinkConfig
