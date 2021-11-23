@@ -4,16 +4,10 @@ import com.google.gson.JsonElement
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.sql.*
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
+import java.time.*
 import java.util.*
 
 enum class JdbcDriver(val value: String) {
-    H2("H2 JDBC Driver"),
-    MYSQL("MySQL Connector/J"),
-    MARIADB("MariaDB Connector/J"),
-    POSTGRESQL("PostgreSQL JDBC Driver"),
     TDENGINE("TDengine JDBC Driver"),
 }
 
@@ -28,12 +22,12 @@ enum class JdbcAction {
 data class JdbcColumn(
     val name: String,
     val type: Int,
-    val isKey: Boolean,
     val nullable: Boolean,
     val unsigned: Boolean,
+    val tag: String,
 ) {
     override fun toString(): String {
-        return "JdbcColumn(name='$name', type=${JDBCType.valueOf(type).name}, isKey=$isKey, nullable=$nullable, unsigned=$unsigned)"
+        return "JdbcColumn(name='$name', type=${JDBCType.valueOf(type).name}, nullable=$nullable, unsigned=$unsigned), tag=$tag"
     }
 
     fun parseField(field: JsonElement?): JdbcField {
@@ -51,7 +45,8 @@ data class JdbcColumn(
             Types.DECIMAL -> field.asBigDecimal
             Types.CHAR,
             Types.VARCHAR,
-            Types.LONGVARCHAR -> field.asString
+            Types.LONGVARCHAR,
+            Types.NCHAR -> field.asString
             Types.BINARY,
             Types.VARBINARY,
             Types.LONGVARBINARY -> Base64.getDecoder().decode(field.asString)
@@ -59,12 +54,12 @@ data class JdbcColumn(
             Types.BLOB -> TODO()
             Types.DATE -> LocalDate.parse(field.asString)
             Types.TIME -> LocalTime.parse(field.asString)
-            Types.TIMESTAMP -> LocalDateTime.parse(field.asString)
+            Types.TIMESTAMP -> LocalDateTime.ofInstant(Instant.ofEpochMilli(field.asLong), ZoneId.systemDefault())
             Types.TIME_WITH_TIMEZONE -> TODO()
             Types.TIMESTAMP_WITH_TIMEZONE -> TODO()
             else -> TODO()
         }
-        return JdbcField(name, type, isKey, value)
+        return JdbcField(name, type, value)
     }
 }
 
@@ -74,10 +69,6 @@ data class JdbcTable(
     val name: String,
     val columns: List<JdbcColumn>,
 ) {
-    val keys: List<JdbcColumn> by lazy { columns.filter(JdbcColumn::isKey) }
-
-    fun hasKey(c: String): Boolean = keys.any { it.name == c }
-
     fun hasColumn(c: String): Boolean = columns.any { it.name == c }
 
     fun parseFields(entity: JsonElement): List<JdbcField> = columns.filter { entity.asJsonObject.has(it.name) }.map {
@@ -88,27 +79,27 @@ data class JdbcTable(
 data class JdbcField(
     val name: String,
     val type: Int,
-    val isKey: Boolean,
     val value: Any?,
 ) {
     override fun toString(): String {
-        return "JdbcField(name='$name', type=${JDBCType.valueOf(type).name}, isKey=$isKey, value=$value)"
+        return "JdbcField(name='$name', type=${JDBCType.valueOf(type).name}, value=$value)"
     }
 }
 
 fun DatabaseMetaData.loadTable(target: String): JdbcTable {
     val p = target.split('.')
     val c = if (p.size > 1) p[0] else null ?: connection.catalog
-    val s = if (p.size > 2) p[1] else null ?: connection.schema
+//    val s = if (p.size > 2) p[1] else null ?: connection.schema
+    val s = null
     val t = p.last()
+    JdbcSink.LOGGER.info("s $s, t $t, c $c")
     return getTables(c, s, t, arrayOf("TABLE")).use {
         if (it.next()) {
-            if (!it.isLast) {
-                throw IllegalArgumentException("Implicit table of target \"$target\"")
-            }
             val catalog = it.getString(1) ?: c
             val schema = it.getString(2) ?: s
             val name = it.getString(3)
+            val stable = it.getString(5)
+            JdbcSink.LOGGER.info("catalog $catalog schema $schema $name stable $stable")
             val keys = getPrimaryKeys(catalog, schema, name).use {
                 generateSequence { if (it.next()) it.getString(4) else null }.toList()
             }
@@ -118,8 +109,8 @@ fun DatabaseMetaData.loadTable(target: String): JdbcTable {
                         it.getString(4),
                         it.getInt(5),
                         keys.contains(it.getString(4)),
-                        it.getString(18) == "YES",
-                        it.getString(6).contains("UNSIGNED", true)
+                        it.getString(6).contains("UNSIGNED", true),
+                        it.getString(12)
                     ) else null
                 }.toList()
             }
@@ -143,68 +134,34 @@ private fun Connection.q(vararg args: String): String = metaData.quoting(*args)
 // table identifier
 private fun Connection.t(table: JdbcTable): String = q(table.catalog, table.schema, table.name)
 
-// key list
-private fun Connection.k(table: JdbcTable): String = table.keys.joinToString { q(it.name) }
-
-// key predicate
-private fun Connection.p(table: JdbcTable): String = table.keys.joinToString { "${q(it.name)} = ?" }
-
 //endregion
 
-fun Connection.buildSQL(target: String, action: JdbcAction, entity: JsonElement, sqlMode: Set<String>): String {
-    if (action == JdbcAction.SCHEMA) {
-        return entity.asJsonObject.get("ddl").asString
-    }
+fun Connection.buildSQL(target: String, action: JdbcAction, entity: JsonElement): String {
+    val p = target.split('.')
+    val stable = if (p.size > 2) p[1] else null
     val table = metaData.loadTable(target)
     val fields = entity.asJsonObject.entrySet().filter { table.hasColumn(it.key) }
-    val nonKeys = fields.filterNot { table.hasKey(it.key) }
-    val ignoreInvalid = sqlMode.contains("INSERT_IGNORE_INVALID")
     return when (action) {
         JdbcAction.INSERT -> {
             when (metaData.driverName) {
-                JdbcDriver.MYSQL.value,
-                JdbcDriver.MARIADB.value,
                 JdbcDriver.TDENGINE.value ->
-                    "INSERT${if (ignoreInvalid) " IGNORE" else ""} INTO ${t(table)} (${fields.joinToString { q(it.key) }}) VALUES (${fields.joinToString { "?" }})"
+                    if (stable == null)
+                        "INSERT INTO ${t(table)} (${fields.joinToString { q(it.key) }}) VALUES (${fields.joinToString { "?" }})"
+                    else
+                        ""
                 else ->
                     "INSERT INTO ${t(table)} (${fields.joinToString { q(it.key) }}) VALUES (${fields.joinToString { "?" }})"
             }
         }
 
         JdbcAction.UPSERT -> {
-            when (metaData.driverName) {
-                JdbcDriver.H2.value -> {
-                    "MERGE INTO ${t(table)} (${fields.joinToString { q(it.key) }}) VALUES (${fields.joinToString { "?" }})"
-                }
-                JdbcDriver.MYSQL.value,
-                JdbcDriver.MARIADB.value -> {
-                    "INSERT INTO ${t(table)} (${fields.joinToString { q(it.key) }}) VALUES (${fields.joinToString { "?" }}) ON DUPLICATE KEY UPDATE ${
-                        nonKeys.joinToString {
-                            "${
-                                q(
-                                    it.key
-                                )
-                            }=?"
-                        }
-                    }"
-                }
-                JdbcDriver.POSTGRESQL.value -> {
-                    "INSERT INTO ${t(table)} (${fields.joinToString { q(it.key) }}) VALUES (${fields.joinToString { "?" }}) ON CONFLICT(${
-                        k(
-                            table
-                        )
-                    }) DO UPDATE SET ${nonKeys.joinToString { "${q(it.key)}=?" }}"
-                }
-                else -> {
-                    throw java.lang.IllegalArgumentException("Unsupported action $action with JDBC driver ${metaData.driverName}")
-                }
-            }
+            ""
         }
         JdbcAction.UPDATE -> {
-            "UPDATE ${t(table)} SET ${nonKeys.joinToString { "${q(it.key)} = ?" }} WHERE ${p(table)}"
+            ""
         }
         JdbcAction.DELETE -> {
-            "DELETE FROM ${t(table)} WHERE ${p(table)}"
+            ""
         }
         JdbcAction.SCHEMA -> { // Never
             ""
@@ -257,34 +214,17 @@ fun PreparedStatement.bindValue(target: String, action: JdbcAction, entity: Json
     }
     val table = connection.metaData.loadTable(target)
     val fields = table.parseFields(entity)
-    val keys = fields.filter(JdbcField::isKey)
-    val nonKeys = fields.filterNot(JdbcField::isKey)
     when (action) {
         JdbcAction.INSERT -> {
             setParams(fields)
         }
         JdbcAction.UPSERT -> {
-            when (connection.metaData.driverName) {
-                JdbcDriver.H2.value -> {
-                    setParams(fields)
-                }
-                JdbcDriver.MYSQL.value,
-                JdbcDriver.MARIADB.value,
-                JdbcDriver.POSTGRESQL.value -> {
-                    setParams(fields)
-                    setParams(nonKeys, fields.size)
-                }
-                else -> {
-                    throw java.lang.IllegalArgumentException("Unsupported action $action with JDBC driver ${connection.metaData.driverName}")
-                }
-            }
+
         }
         JdbcAction.UPDATE -> {
-            setParams(nonKeys)
-            setParams(keys, nonKeys.size)
+
         }
         JdbcAction.DELETE -> {
-            setParams(keys)
         }
         JdbcAction.SCHEMA -> { // Never
         }

@@ -49,7 +49,7 @@ class JdbcSink : Sink<ByteArray> {
             record::class
         )
         dataSource.connection.use { conn ->
-            val sql = conn.buildSQL(record.target, record.action, record.entity, record.sqlMode)
+            val sql = conn.buildSQL(record.target, record.action, record.entity)
             val statement = conn.prepareStatement(sql)
             LOGGER.info("STATEMENT: {}", sql)
             statement.bindValue(record.target, record.action, record.entity)
@@ -59,7 +59,7 @@ class JdbcSink : Sink<ByteArray> {
                 record.ack()
             } catch (e: SQLException) {
                 LOGGER.warn("Caught SQLException when execute statement", e)
-                conn.rollback()
+//                conn.rollback()
                 throw e
             }
         }
@@ -75,6 +75,3 @@ inline val Record<ByteArray>.target: String
 
 inline val Record<ByteArray>.entity: JsonElement
     get() = JsonParser().parse(String(value))
-
-inline val Record<ByteArray>.sqlMode: Set<String>
-    get() = properties["SQLMODE"]?.toUpperCase()?.split(',')?.toSet() ?: setOf()

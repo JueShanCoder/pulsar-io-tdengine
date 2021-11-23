@@ -78,6 +78,22 @@ public class TDengineSourceConfig implements Serializable {
     )
     private String sql;
 
+    @FieldDoc(
+            required = true,
+            defaultValue = "",
+            sensitive = true,
+            help = ""
+    )
+    private String tableName;
+
+    @FieldDoc(
+            required = true,
+            defaultValue = "",
+            sensitive = true,
+            help = ""
+    )
+    private String sTableName;
+
     public static TDengineSourceConfig load(String yamlFile) throws IOException {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         return mapper.readValue(new File(yamlFile), TDengineSourceConfig.class);

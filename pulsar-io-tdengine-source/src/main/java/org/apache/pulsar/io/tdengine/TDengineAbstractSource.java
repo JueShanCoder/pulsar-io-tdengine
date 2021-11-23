@@ -134,11 +134,11 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
                     for (int i = 1; i <= columnCount; i++) {
                         columnMap.put(metaData.getColumnLabel(i),resultSet.getString(i));
                     }
-                    log.info("TDengineAbstractSource got message {}",new ObjectMapper().writeValueAsString(columnMap));
                     TDengineRecord<V> tDengineRecord = new TDengineRecord<>();
                     tDengineRecord.setRecord(extractValue(columnMap));
-                    tDengineRecord.getProperties().put(TARGET, "power.meters");
+                    tDengineRecord.getProperties().put(TARGET, "power_2.meters");
                     tDengineRecord.getProperties().put(ACTION, INSERT);
+                    log.info("TDengineRecord got message {}",new ObjectMapper().writeValueAsString(tDengineRecord));
                     consume(tDengineRecord);
                 }
             }
