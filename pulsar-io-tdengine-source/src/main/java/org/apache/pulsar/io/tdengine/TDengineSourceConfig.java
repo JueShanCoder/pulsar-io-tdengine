@@ -60,11 +60,11 @@ public class TDengineSourceConfig implements Serializable {
             sensitive = true,
             help = "If restart is true, all data will be read, otherwise only the latest data will be read"
     )
-    private Boolean restart;
+    private Boolean restart = true;
 
     @FieldDoc(
             required = false,
-            defaultValue = "true",
+            defaultValue = "",
             sensitive = true,
             help = "Subscribe to the topic name of TDengine"
     )

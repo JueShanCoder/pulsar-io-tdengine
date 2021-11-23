@@ -24,7 +24,7 @@ data class JdbcColumn(
     val type: Int,
     val nullable: Boolean,
     val unsigned: Boolean,
-    val tag: String,
+    val tag: String?,
 ) {
     override fun toString(): String {
         return "JdbcColumn(name='$name', type=${JDBCType.valueOf(type).name}, nullable=$nullable, unsigned=$unsigned), tag=$tag"
