@@ -24,10 +24,9 @@ data class JdbcColumn(
     val type: Int,
     val nullable: Boolean,
     val unsigned: Boolean,
-    val tag: String?,
 ) {
     override fun toString(): String {
-        return "JdbcColumn(name='$name', type=${JDBCType.valueOf(type).name}, nullable=$nullable, unsigned=$unsigned), tag=$tag"
+        return "JdbcColumn(name='$name', type=${JDBCType.valueOf(type).name}, nullable=$nullable, unsigned=$unsigned)"
     }
 
     fun parseField(field: JsonElement?): JdbcField {
@@ -68,8 +67,11 @@ data class JdbcTable(
     val schema: String,
     val name: String,
     val columns: List<JdbcColumn>,
+    val sColumns: List<JdbcColumn>,
 ) {
     fun hasColumn(c: String): Boolean = columns.any { it.name == c }
+
+    fun hasSColumn(c: String): Boolean = columns.any { it.name == c }
 
     fun parseFields(entity: JsonElement): List<JdbcField> = columns.filter { entity.asJsonObject.has(it.name) }.map {
         it.parseField(entity.asJsonObject.get(it.name))
@@ -89,11 +91,9 @@ data class JdbcField(
 fun DatabaseMetaData.loadTable(target: String): JdbcTable {
     val p = target.split('.')
     val c = if (p.size > 1) p[0] else null ?: connection.catalog
-//    val s = if (p.size > 2) p[1] else null ?: connection.schema
     val s = null
     val t = p.last()
-    JdbcSink.LOGGER.info("s $s, t $t, c $c")
-    return getTables(c, s, t, arrayOf("TABLE")).use {
+    return getTables(c, null, t, arrayOf("TABLE")).use {
         if (it.next()) {
             val catalog = it.getString(1) ?: c
             val schema = it.getString(2) ?: s
@@ -103,18 +103,31 @@ fun DatabaseMetaData.loadTable(target: String): JdbcTable {
             val keys = getPrimaryKeys(catalog, schema, name).use {
                 generateSequence { if (it.next()) it.getString(4) else null }.toList()
             }
-            val cols = getColumns(catalog, schema, name, null).use {
-                generateSequence {
-                    if (it.next()) JdbcColumn(
-                        it.getString(4),
-                        it.getInt(5),
-                        keys.contains(it.getString(4)),
-                        it.getString(6).contains("UNSIGNED", true),
-                        it.getString(12)
-                    ) else null
-                }.toList()
+            val columns = getColumns(catalog, schema, name, null)
+            val cols = mutableListOf<JdbcColumn>()
+            val sCols = mutableListOf<JdbcColumn>()
+            columns.use { i ->
+                if (i.next()) {
+                    if (i.getString(12) == null) {
+                        cols.add(
+                            JdbcColumn(
+                                i.getString(4),
+                                i.getInt(5),
+                                keys.contains(i.getString(4)),
+                                i.getString(6).contains("UNSIGNED", true),
+                            )
+                        )
+                    } else {
+                        sCols.add(JdbcColumn(
+                            i.getString(4),
+                            i.getInt(5),
+                            keys.contains(i.getString(4)),
+                            i.getString(6).contains("UNSIGNED", true),
+                        ))
+                    }
+                }
             }
-            JdbcTable(catalog, schema ?: "", name, cols)
+            JdbcTable(catalog, schema ?: "", name, cols, sCols)
         } else {
             throw IllegalArgumentException("Implicit table of target \"$target\"")
         }
@@ -135,18 +148,18 @@ private fun Connection.q(vararg args: String): String = metaData.quoting(*args)
 private fun Connection.t(table: JdbcTable): String = q(table.catalog, table.schema, table.name)
 
 //endregion
-
 fun Connection.buildSQL(target: String, action: JdbcAction, entity: JsonElement): String {
     val p = target.split('.')
     val stable = if (p.size > 2) p[1] else null
     val table = metaData.loadTable(target)
     val fields = entity.asJsonObject.entrySet().filter { table.hasColumn(it.key) }
+    val sFields = entity.asJsonObject.entrySet().filter { table.hasSColumn(it.key) }
     return when (action) {
         JdbcAction.INSERT -> {
             when (metaData.driverName) {
                 JdbcDriver.TDENGINE.value ->
                     if (stable == null)
-                        "INSERT INTO ${t(table)} (${fields.joinToString { q(it.key) }}) VALUES (${fields.joinToString { "?" }})"
+                        "INSERT INTO ${t(table)} USING $stable (${sFields.joinToString { q(it.key) }}) TAGS (${sFields.joinToString { "?" }}) (${fields.joinToString { q(it.key) }}) VALUES (${fields.joinToString { "?" }})"
                     else
                         ""
                 else ->

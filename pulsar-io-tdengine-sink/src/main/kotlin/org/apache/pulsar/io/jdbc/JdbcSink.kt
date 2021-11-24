@@ -1,6 +1,5 @@
 package org.apache.pulsar.io.jdbc
 
-
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import com.zaxxer.hikari.HikariDataSource
