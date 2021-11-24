@@ -63,18 +63,11 @@ public class TDengineSourceConfig implements Serializable {
     private Boolean restart = true;
 
     @FieldDoc(
-            required = false,
-            defaultValue = "",
-            sensitive = true,
-            help = "Subscribe to the topic name of TDengine"
-    )
-    private String topic;
-
-    @FieldDoc(
             required = true,
             defaultValue = "",
             sensitive = true,
-            help = "The filter sql script, 此语句只能是 select 语句，只应查询原始数据，只能按时间正序查询数据"
+            help = "This statement can only be a select statement, only the original data should be queried," +
+                    " and the data can only be queried in the positive order of time "
     )
     private String sql;
 
@@ -82,7 +75,7 @@ public class TDengineSourceConfig implements Serializable {
             required = true,
             defaultValue = "",
             sensitive = true,
-            help = ""
+            help = "Database used to connect TDengine "
     )
     private String database;
 
@@ -90,17 +83,17 @@ public class TDengineSourceConfig implements Serializable {
             required = true,
             defaultValue = "",
             sensitive = true,
-            help = ""
+            help = "Table name used to connect TDengine "
     )
     private String tableName;
 
     @FieldDoc(
-            required = true,
+            required = false,
             defaultValue = "",
             sensitive = true,
-            help = ""
+            help = "Super table name used to connect TDengine"
     )
-    private String sTableName;
+    private String sTableName = null;
 
     public static TDengineSourceConfig load(String yamlFile) throws IOException {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());

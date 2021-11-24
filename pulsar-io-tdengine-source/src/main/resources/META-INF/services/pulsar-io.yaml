@@ -18,5 +18,5 @@
 #
 name: TDengine
 description: Tdengine Source connector
-sourceClass: org.apache.pulsar.io.tdengine.TDengineSource
+sourceClass: org.apache.pulsar.io.tdengine.TDengineBytesSource
 sourceConfigClass: org.apache.pulsar.io.tdengine.TDengineSourceConfig

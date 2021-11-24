@@ -1,27 +1,16 @@
 package org.apache.pulsar.io.tdengine;
 
-
 import cn.hutool.core.lang.Snowflake;
 import cn.hutool.core.util.IdUtil;
 import com.alibaba.druid.pool.DruidDataSource;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taosdata.jdbc.TSDBConnection;
 import com.taosdata.jdbc.TSDBDriver;
-import com.taosdata.jdbc.TSDBResultSet;
 import com.taosdata.jdbc.TSDBSubscribe;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.api.Schema;
-import org.apache.pulsar.client.api.schema.GenericRecord;
-import org.apache.pulsar.client.api.schema.GenericSchema;
-import org.apache.pulsar.client.api.schema.RecordSchemaBuilder;
-import org.apache.pulsar.client.api.schema.SchemaBuilder;
-import org.apache.pulsar.common.schema.SchemaInfo;
-import org.apache.pulsar.common.schema.SchemaType;
 import org.apache.pulsar.io.core.PushSource;
 import org.apache.pulsar.io.core.SourceContext;
 
 import java.sql.Connection;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.*;
 
@@ -31,21 +20,14 @@ import static org.apache.pulsar.io.tdengine.TDengineSourceConfig.driverName;
 public abstract class TDengineAbstractSource<V> extends PushSource<V> {
 
     private DruidDataSource dataSource = null;
-    private TDengineSourceConfig tDengineSourceConfig;
     private Thread thread;
-    protected volatile boolean running = false;
     private final Thread.UncaughtExceptionHandler handler = (t, e) -> log.error("[{}] parse events has an error", t.getName(), e);
-    private Connection connection;
-    private TSDBSubscribe subscribe;
+
+    protected TDengineSourceConfig tDengineSourceConfig;
+    protected volatile boolean running = false;
+    protected Connection connection;
+    protected TSDBSubscribe subscribe;
     protected Snowflake snowflake;
-
-    protected RecordSchemaBuilder recordSchemaBuilder;
-    protected GenericSchema<GenericRecord> schema;
-
-    protected static final String ACTION = "ACTION";
-    protected static final String INSERT = "INSERT";
-    protected static final String TARGET = "TARGET";
-
     protected String topicName;
 
     @Override
@@ -102,7 +84,7 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
             // create TDengine subscribe
             TSDBConnection unwrap = connection.unwrap(TSDBConnection.class);
             topicName = getTopicName();
-            subscribe = unwrap.subscribe(topicName, tDengineSourceConfig.getSql(), true);
+            subscribe = unwrap.subscribe(topicName, tDengineSourceConfig.getSql(), tDengineSourceConfig.getRestart());
         } catch (SQLException e) {
             log.error("Failed to get a connection from the connection pool.",e);
             throw new IllegalArgumentException("Failed to get a connection from the connection pool.");
@@ -116,45 +98,7 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
         thread.start();
     }
 
-    private void process(){
-        try {
-            while (running) {
-                TSDBResultSet resultSet = subscribe.consume();
-                if (resultSet == null) {
-                    continue;
-                }
-                ResultSetMetaData metaData = resultSet.getMetaData();
-                while (resultSet.next()) {
-                    Map<String, Object> columnMap = new HashMap<>();
-                    int columnCount = metaData.getColumnCount();
-
-                    for (int i = 1; i <= columnCount; i++) {
-                        columnMap.put(metaData.getColumnLabel(i),resultSet.getString(i));
-                    }
-                    TDengineRecord<V> tDengineRecord = new TDengineRecord<>();
-                    tDengineRecord.setRecord(extractValue(columnMap));
-                    tDengineRecord.getProperties().put(TARGET, "power_2.meters.d1001");
-                    tDengineRecord.getProperties().put(ACTION, INSERT);
-                    log.info("TDengineRecord got message {}",new ObjectMapper().writeValueAsString(tDengineRecord));
-                    consume(tDengineRecord);
-                }
-            }
-        } catch (Exception e) {
-            log.error("process error!", e);
-        } finally {
-            try {
-                if (null != subscribe)
-                    // close subscribe
-                    subscribe.close(true);
-
-                if (connection != null)
-                    connection.close();
-
-            } catch (SQLException e) {
-                log.error("Failed to close connection or subscribe.");
-            }
-        }
-    }
+    abstract void process();
 
     public abstract V extractValue(Map<String, Object> columnMap);
 
