@@ -1,14 +1,15 @@
 package org.apache.pulsar.io.jdbc
 
+import com.alibaba.fastjson.JSON
 import com.google.gson.JsonElement
+import org.apache.commons.codec.binary.Base64
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.sql.*
 import java.time.*
-import java.util.*
 
 enum class JdbcDriver(val value: String) {
-    TDENGINE("TDengine JDBC Driver"),
+    TDENGINE("com.taosdata.jdbc.TSDBDriver"),
 }
 
 enum class JdbcAction {
@@ -30,6 +31,8 @@ data class JdbcColumn(
     }
 
     fun parseField(field: JsonElement?): JdbcField {
+        JdbcSink.LOGGER.info("field $field")
+        JdbcSink.LOGGER.info("type $type")
         val value: Any? = if (field == null || field.isJsonNull) null else when (type) {
             Types.BIT,
             Types.BOOLEAN -> field.asBoolean
@@ -48,12 +51,12 @@ data class JdbcColumn(
             Types.NCHAR -> field.asString
             Types.BINARY,
             Types.VARBINARY,
-            Types.LONGVARBINARY -> Base64.getDecoder().decode(field.asString)
+            Types.LONGVARBINARY -> Base64.decodeBase64(field.asString)
             Types.CLOB -> TODO()
             Types.BLOB -> TODO()
             Types.DATE -> LocalDate.parse(field.asString)
             Types.TIME -> LocalTime.parse(field.asString)
-            Types.TIMESTAMP -> LocalDateTime.ofInstant(Instant.ofEpochMilli(field.asLong), ZoneId.systemDefault())
+            Types.TIMESTAMP ->  field.asString
             Types.TIME_WITH_TIMEZONE -> TODO()
             Types.TIMESTAMP_WITH_TIMEZONE -> TODO()
             else -> TODO()
@@ -69,11 +72,11 @@ data class JdbcTable(
     val columns: List<JdbcColumn>,
     val sColumns: List<JdbcColumn>,
 ) {
-    fun hasColumn(c: String): Boolean = columns.any { it.name == c }
-
-    fun hasSColumn(c: String): Boolean = columns.any { it.name == c }
-
     fun parseFields(entity: JsonElement): List<JdbcField> = columns.filter { entity.asJsonObject.has(it.name) }.map {
+        it.parseField(entity.asJsonObject.get(it.name))
+    }
+
+    fun parseSFields(entity: JsonElement): List<JdbcField> = sColumns.filter { entity.asJsonObject.has(it.name) }.map {
         it.parseField(entity.asJsonObject.get(it.name))
     }
 }
@@ -98,35 +101,33 @@ fun DatabaseMetaData.loadTable(target: String): JdbcTable {
             val catalog = it.getString(1) ?: c
             val schema = it.getString(2) ?: s
             val name = it.getString(3)
-            val stable = it.getString(5)
-            JdbcSink.LOGGER.info("catalog $catalog schema $schema $name stable $stable")
-            val keys = getPrimaryKeys(catalog, schema, name).use {
-                generateSequence { if (it.next()) it.getString(4) else null }.toList()
-            }
             val columns = getColumns(catalog, schema, name, null)
-            val cols = mutableListOf<JdbcColumn>()
-            val sCols = mutableListOf<JdbcColumn>()
-            columns.use { i ->
-                if (i.next()) {
-                    if (i.getString(12) == null) {
+            val cols =  mutableListOf<JdbcColumn>()
+            val sCols =  mutableListOf<JdbcColumn>()
+            columns.use {
+                while (it.next()){
+                    if (it.getString(12) == null) {
                         cols.add(
                             JdbcColumn(
-                                i.getString(4),
-                                i.getInt(5),
-                                keys.contains(i.getString(4)),
-                                i.getString(6).contains("UNSIGNED", true),
+                            it.getString(4),
+                            it.getInt(5),
+                            it.getString(18) == "YES",
+                            it.getString(6).contains("UNSIGNED", true),
                             )
                         )
                     } else {
-                        sCols.add(JdbcColumn(
-                            i.getString(4),
-                            i.getInt(5),
-                            keys.contains(i.getString(4)),
-                            i.getString(6).contains("UNSIGNED", true),
-                        ))
+                        sCols.add(
+                            JdbcColumn(
+                            it.getString(4),
+                            it.getInt(5),
+                            it.getString(18) == "YES",
+                            it.getString(6).contains("UNSIGNED", true),
+                            )
+                        )
                     }
                 }
             }
+            JdbcSink.LOGGER.info("cols: ${JSON.toJSONString(cols)}, sCols: ${JSON.toJSONString(sCols)} ")
             JdbcTable(catalog, schema ?: "", name, cols, sCols)
         } else {
             throw IllegalArgumentException("Implicit table of target \"$target\"")
@@ -151,19 +152,22 @@ private fun Connection.t(table: JdbcTable): String = q(table.catalog, table.sche
 fun Connection.buildSQL(target: String, action: JdbcAction, entity: JsonElement): String {
     val p = target.split('.')
     val stable = if (p.size > 2) p[1] else null
+    JdbcSink.LOGGER.info("stable $stable")
     val table = metaData.loadTable(target)
-    val fields = entity.asJsonObject.entrySet().filter { table.hasColumn(it.key) }
-    val sFields = entity.asJsonObject.entrySet().filter { table.hasSColumn(it.key) }
+    val fields = table.parseFields(entity)
+    val sFields = table.parseSFields(entity)
+
     return when (action) {
         JdbcAction.INSERT -> {
+            JdbcSink.LOGGER.info("metaData.driverName ${metaData.driverName}")
             when (metaData.driverName) {
                 JdbcDriver.TDENGINE.value ->
-                    if (stable == null)
-                        "INSERT INTO ${t(table)} USING $stable (${sFields.joinToString { q(it.key) }}) TAGS (${sFields.joinToString { "?" }}) (${fields.joinToString { q(it.key) }}) VALUES (${fields.joinToString { "?" }})"
+                    if (stable != null)
+                        "INSERT INTO ${t(table)} USING $stable (${sFields.joinToString { q(it.name) }}) TAGS (${sFields.joinToString { "?" }}) (${fields.joinToString { q(it.name) }}) VALUES (${fields.joinToString { "?" }})"
                     else
-                        ""
+                        "INSERT INTO ${t(table)} (${fields.joinToString { q(it.name) }}) VALUES (${fields.joinToString { "?" }})"
                 else ->
-                    "INSERT INTO ${t(table)} (${fields.joinToString { q(it.key) }}) VALUES (${fields.joinToString { "?" }})"
+                    "INSERT INTO ${t(table)} (${fields.joinToString { q(it.name) }}) VALUES (${fields.joinToString { "?" }})"
             }
         }
 
@@ -186,6 +190,7 @@ fun PreparedStatement.setDate(index: Int, date: LocalDate) = setDate(index, java
 fun PreparedStatement.setTime(index: Int, time: LocalTime) = setTime(index, Time.valueOf(time))
 fun PreparedStatement.setTimestamp(index: Int, datetime: LocalDateTime) = setTimestamp(index, Timestamp.valueOf(datetime))
 fun PreparedStatement.setParam(index: Int, field: JdbcField) {
+    JdbcSink.LOGGER.info("=======  index $index ,field ${field.name}")
     if (field.value == null) setNull(index, field.type) else when (field.type) {
         Types.BIT,
         Types.BOOLEAN -> setBoolean(index, field.value as Boolean)
@@ -203,7 +208,8 @@ fun PreparedStatement.setParam(index: Int, field: JdbcField) {
         Types.DECIMAL -> setBigDecimal(index, field.value as BigDecimal)
         Types.CHAR,
         Types.VARCHAR,
-        Types.LONGVARCHAR -> setString(index, field.value as String)
+        Types.LONGVARCHAR,
+        Types.NCHAR -> setString(index, field.value as String)
         Types.BINARY,
         Types.VARBINARY,
         Types.LONGVARBINARY -> setBytes(index, field.value as ByteArray)
@@ -211,7 +217,7 @@ fun PreparedStatement.setParam(index: Int, field: JdbcField) {
         Types.BLOB -> TODO()
         Types.DATE -> setDate(index, field.value as LocalDate)
         Types.TIME -> setTime(index, field.value as LocalTime)
-        Types.TIMESTAMP -> setTimestamp(index, field.value as LocalDateTime)
+        Types.TIMESTAMP ->  setString(index, field.value as String)
         Types.TIME_WITH_TIMEZONE -> TODO()
         Types.TIMESTAMP_WITH_TIMEZONE -> TODO()
         else -> TODO()
@@ -227,9 +233,11 @@ fun PreparedStatement.bindValue(target: String, action: JdbcAction, entity: Json
     }
     val table = connection.metaData.loadTable(target)
     val fields = table.parseFields(entity)
+    val sFields = table.parseSFields(entity)
     when (action) {
         JdbcAction.INSERT -> {
-            setParams(fields)
+            setParams(sFields)
+            setParams(fields,sFields.size)
         }
         JdbcAction.UPSERT -> {
 

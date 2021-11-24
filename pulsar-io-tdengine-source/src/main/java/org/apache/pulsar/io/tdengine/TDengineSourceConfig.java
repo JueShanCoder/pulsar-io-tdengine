@@ -20,7 +20,7 @@ public class TDengineSourceConfig implements Serializable {
             sensitive = true,
             help = "TSDB Driver properties key charset"
     )
-    private String charset;
+    private String charset = "UTF-8";
 
     @FieldDoc(
             required = false,
@@ -28,7 +28,7 @@ public class TDengineSourceConfig implements Serializable {
             sensitive = true,
             help = "TSDB Driver properties key timezone"
     )
-    private String timezone;
+    private String timezone = "UTC-8";
 
     @FieldDoc(
             required = true,
@@ -77,6 +77,14 @@ public class TDengineSourceConfig implements Serializable {
             help = "The filter sql script, 此语句只能是 select 语句，只应查询原始数据，只能按时间正序查询数据"
     )
     private String sql;
+
+    @FieldDoc(
+            required = true,
+            defaultValue = "",
+            sensitive = true,
+            help = ""
+    )
+    private String database;
 
     @FieldDoc(
             required = true,

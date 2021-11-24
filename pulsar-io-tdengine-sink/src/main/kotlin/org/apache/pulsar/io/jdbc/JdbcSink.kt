@@ -58,7 +58,6 @@ class JdbcSink : Sink<ByteArray> {
                 record.ack()
             } catch (e: SQLException) {
                 LOGGER.warn("Caught SQLException when execute statement", e)
-//                conn.rollback()
                 throw e
             }
         }

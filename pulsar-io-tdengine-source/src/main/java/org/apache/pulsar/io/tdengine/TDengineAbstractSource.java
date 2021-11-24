@@ -63,11 +63,8 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
         dataSource.setPassword(tDengineSourceConfig.getPassword());
         // properties
         Properties properties = new Properties();
-        // TODO check default value
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-//        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, tDengineSourceConfig.getCharset());
-//        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, tDengineSourceConfig.getTimezone());
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, tDengineSourceConfig.getCharset());
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, tDengineSourceConfig.getTimezone());
         // pool configurations
         dataSource.setInitialSize(10);
         dataSource.setMinIdle(10);
@@ -136,7 +133,7 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
                     }
                     TDengineRecord<V> tDengineRecord = new TDengineRecord<>();
                     tDengineRecord.setRecord(extractValue(columnMap));
-                    tDengineRecord.getProperties().put(TARGET, "power_2.meters");
+                    tDengineRecord.getProperties().put(TARGET, "power_2.meters.d1001");
                     tDengineRecord.getProperties().put(ACTION, INSERT);
                     log.info("TDengineRecord got message {}",new ObjectMapper().writeValueAsString(tDengineRecord));
                     consume(tDengineRecord);
