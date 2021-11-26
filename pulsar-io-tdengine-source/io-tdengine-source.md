@@ -15,8 +15,6 @@ The configuration of TDengine source connector has the following properties.
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
-| `charset` | false | UTF-8 | TSDB Driver properties key charset.|
-| `timezone` | false | UTC-8 | TSDB Driver properties key timezone. |
 |`jdbcUrl`|true|None|The JDBC url of the database this connector connects to.
 | `username` | true | None | Username used to connect to the database specified by `jdbcUrl`.|
 | `password` | true | None | Password used to connect to the database specified by `jdbcUrl`.|

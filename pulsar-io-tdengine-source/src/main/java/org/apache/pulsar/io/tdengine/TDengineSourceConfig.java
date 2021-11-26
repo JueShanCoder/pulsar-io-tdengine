@@ -15,22 +15,6 @@ public class TDengineSourceConfig implements Serializable {
     public static final String driverName = "com.taosdata.jdbc.TSDBDriver";
 
     @FieldDoc(
-            required = false,
-            defaultValue = "UTF-8",
-            sensitive = true,
-            help = "TSDB Driver properties key charset"
-    )
-    private String charset = "UTF-8";
-
-    @FieldDoc(
-            required = false,
-            defaultValue = "UTC-8",
-            sensitive = true,
-            help = "TSDB Driver properties key timezone"
-    )
-    private String timezone = "UTC-8";
-
-    @FieldDoc(
             required = true,
             defaultValue = "",
             sensitive = true,

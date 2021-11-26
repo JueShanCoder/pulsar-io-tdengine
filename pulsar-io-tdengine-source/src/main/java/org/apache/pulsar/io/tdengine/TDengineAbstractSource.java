@@ -2,10 +2,10 @@ package org.apache.pulsar.io.tdengine;
 
 import cn.hutool.core.lang.Snowflake;
 import cn.hutool.core.util.IdUtil;
-import com.alibaba.druid.pool.DruidDataSource;
 import com.taosdata.jdbc.TSDBConnection;
-import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.TSDBSubscribe;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.io.core.PushSource;
 import org.apache.pulsar.io.core.SourceContext;
@@ -14,12 +14,10 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
 
-import static org.apache.pulsar.io.tdengine.TDengineSourceConfig.driverName;
-
 @Slf4j
 public abstract class TDengineAbstractSource<V> extends PushSource<V> {
 
-    private DruidDataSource dataSource = null;
+    private HikariDataSource dataSource = null;
     private Thread thread;
     private final Thread.UncaughtExceptionHandler handler = (t, e) -> log.error("[{}] parse events has an error", t.getName(), e);
 
@@ -32,29 +30,26 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
 
     @Override
     public void open(Map<String, Object> config, SourceContext sourceContext) throws Exception {
-        dataSource = new DruidDataSource();
         tDengineSourceConfig = TDengineSourceConfig.load(config);
-        if (tDengineSourceConfig.getJdbcUrl() == null || tDengineSourceConfig.getUserName() == null ||
+        if (tDengineSourceConfig.getJdbcUrl() == null || tDengineSourceConfig.getUsername() == null ||
                 tDengineSourceConfig.getPassword() == null || tDengineSourceConfig.getSql() == null )
             throw new IllegalArgumentException("Required params not set.");
 
+        HikariConfig hikariConfig = new HikariConfig();
         // jdbc properties
-        dataSource.setDriverClassName(driverName);
-        dataSource.setUrl(tDengineSourceConfig.getJdbcUrl());
-        dataSource.setUsername(tDengineSourceConfig.getUserName());
-        dataSource.setPassword(tDengineSourceConfig.getPassword());
-        // properties
-        Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, tDengineSourceConfig.getCharset());
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, tDengineSourceConfig.getTimezone());
-        // pool configurations
-        dataSource.setInitialSize(10);
-        dataSource.setMinIdle(10);
-        dataSource.setMaxActive(10);
-        dataSource.setMaxWait(30000);
-        dataSource.setValidationQuery("select server_status()");
-        dataSource.setConnectProperties(properties);
+        hikariConfig.setJdbcUrl(tDengineSourceConfig.getJdbcUrl());
+        hikariConfig.setUsername(tDengineSourceConfig.getUsername());
+        hikariConfig.setPassword(tDengineSourceConfig.getPassword());
 
+        // by default
+        // connection pool configurations
+        hikariConfig.setMinimumIdle(10);
+        hikariConfig.setMaximumPoolSize(10);
+        hikariConfig.setConnectionTimeout(30000);
+        hikariConfig.setMaxLifetime(0);
+        hikariConfig.setIdleTimeout(0);
+        hikariConfig.setConnectionTestQuery("select server_status()");
+        dataSource = new HikariDataSource(hikariConfig);
         // snowflake
         snowflake = IdUtil.getSnowflake(1, 1);
         this.start();
