@@ -139,7 +139,12 @@ taos> create table d1002 using meters tags ("Beijing.Haidian", 2);
 7. Download TDengine-client from [TDengine official website](https://www.taosdata.com/cn/all-downloads/)
 > Tips: Choose the TDengine version you need
 
-8. Upload TDengine-client-2.0.18.0-Linux-x64.tar.gz to the Pulsar container and unzip.
+8. Enter the Pulsar container
+```shell
+docker exec -it pulsar-2.8.0 /bin/bash 
+```
+
+9. Upload TDengine-client-2.0.18.0-Linux-x64.tar.gz to the Pulsar container and unzip.
 ```shell
 $ tar -zxvf TDengine-client-2.0.18.0-Linux-x64.tar.gz
 ```
@@ -151,11 +156,6 @@ $ ./install_client.sh
 $  Start to install TDengine client...
  
 $  TDengine client is installed successfully!
-```
-
-9. Enter the Pulsar container
-```shell
-docker exec -it pulsar-2.8.0 /bin/bash 
 ```
 
 10. Start the Pulsar TDengine source connector in local run mode using one of the following methods.
