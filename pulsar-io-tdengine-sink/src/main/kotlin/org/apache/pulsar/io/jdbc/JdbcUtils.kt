@@ -31,8 +31,6 @@ data class JdbcColumn(
     }
 
     fun parseField(field: JsonElement?): JdbcField {
-        JdbcSink.LOGGER.info("field $field")
-        JdbcSink.LOGGER.info("type $type")
         val value: Any? = if (field == null || field.isJsonNull) null else when (type) {
             Types.BIT,
             Types.BOOLEAN -> field.asBoolean
@@ -127,7 +125,6 @@ fun DatabaseMetaData.loadTable(target: String): JdbcTable {
                     }
                 }
             }
-            JdbcSink.LOGGER.info("cols: ${JSON.toJSONString(cols)}, sCols: ${JSON.toJSONString(sCols)} ")
             JdbcTable(catalog, schema ?: "", name, cols, sCols)
         } else {
             throw IllegalArgumentException("Implicit table of target \"$target\"")
@@ -152,14 +149,12 @@ private fun Connection.t(table: JdbcTable): String = q(table.catalog, table.sche
 fun Connection.buildSQL(target: String, action: JdbcAction, entity: JsonElement): String {
     val p = target.split('.')
     val stable = if (p.size > 2) p[1] else null
-    JdbcSink.LOGGER.info("stable $stable")
     val table = metaData.loadTable(target)
     val fields = table.parseFields(entity)
     val sFields = table.parseSFields(entity)
 
     return when (action) {
         JdbcAction.INSERT -> {
-            JdbcSink.LOGGER.info("metaData.driverName ${metaData.driverName}")
             when (metaData.driverName) {
                 JdbcDriver.TDENGINE.value ->
                     if (stable != null)
@@ -190,7 +185,6 @@ fun PreparedStatement.setDate(index: Int, date: LocalDate) = setDate(index, java
 fun PreparedStatement.setTime(index: Int, time: LocalTime) = setTime(index, Time.valueOf(time))
 fun PreparedStatement.setTimestamp(index: Int, datetime: LocalDateTime) = setTimestamp(index, Timestamp.valueOf(datetime))
 fun PreparedStatement.setParam(index: Int, field: JdbcField) {
-    JdbcSink.LOGGER.info("=======  index $index ,field ${field.name}")
     if (field.value == null) setNull(index, field.type) else when (field.type) {
         Types.BIT,
         Types.BOOLEAN -> setBoolean(index, field.value as Boolean)
