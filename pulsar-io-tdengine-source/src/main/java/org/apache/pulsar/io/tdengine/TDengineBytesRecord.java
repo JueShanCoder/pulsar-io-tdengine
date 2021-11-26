@@ -3,6 +3,8 @@ package org.apache.pulsar.io.tdengine;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.apache.pulsar.io.tdengine.TDengineBytesRecord.JdbcAction.*;
+
 public class TDengineBytesRecord extends TDengineAbstractRecord<byte[]>{
 
     private final HashMap<String, String> userProperties = new HashMap<> ();
@@ -13,13 +15,17 @@ public class TDengineBytesRecord extends TDengineAbstractRecord<byte[]>{
     }
 
     public void setProperties(String database, String stable, String table) {
-        String TARGET = "TARGET";
-        String ACTION = "ACTION";
-        String INSERT = "INSERT";
+
         if (stable != null)
             userProperties.put(TARGET,database + "." + stable + "." + table);
         else
             userProperties.put(TARGET,database + "." + table);
         userProperties.put(ACTION, INSERT);
+    }
+
+    static class JdbcAction{
+        public static String TARGET = "TARGET";
+        public static String ACTION = "ACTION";
+        public static String INSERT = "INSERT";
     }
 }

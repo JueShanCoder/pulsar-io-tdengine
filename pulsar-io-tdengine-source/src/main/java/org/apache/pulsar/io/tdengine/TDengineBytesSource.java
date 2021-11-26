@@ -41,7 +41,7 @@ public class TDengineBytesSource extends TDengineAbstractSource<byte[]>{
                         tDengineRecord.setRecord(extractValue(columnMap));
                         tDengineRecord.setProperties(
                                 tDengineSourceConfig.getDatabase(),
-                                tDengineSourceConfig.getSTableName(),
+                                tDengineSourceConfig.getStableName(),
                                 tDengineSourceConfig.getTableName()
                         );
                         log.info("TDengineAbstractRecord got message {}",new ObjectMapper().writeValueAsString(tDengineRecord));

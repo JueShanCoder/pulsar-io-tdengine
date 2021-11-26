@@ -51,7 +51,7 @@ Before using the TDengine sink connector, you need to create a configuration fil
 
 This example shows how to change the data of a TDengine table using the Pulsar TDengine connector.
 
-> Tips: We use docker for simulation testing
+> Tips: We use docker for simulation testing. If you already have docker's TDengine and Pulsar containers, you can skip step 1,2,3,4
 
 1. Initialize docker cluster.
 ```shell

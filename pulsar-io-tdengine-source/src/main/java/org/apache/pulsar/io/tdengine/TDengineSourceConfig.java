@@ -77,7 +77,7 @@ public class TDengineSourceConfig implements Serializable {
             sensitive = true,
             help = "Super table name used to connect TDengine"
     )
-    private String sTableName = null;
+    private String stableName = null;
 
     public static TDengineSourceConfig load(String yamlFile) throws IOException {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());

@@ -32,7 +32,8 @@ public abstract class TDengineAbstractSource<V> extends PushSource<V> {
     public void open(Map<String, Object> config, SourceContext sourceContext) throws Exception {
         tDengineSourceConfig = TDengineSourceConfig.load(config);
         if (tDengineSourceConfig.getJdbcUrl() == null || tDengineSourceConfig.getUsername() == null ||
-                tDengineSourceConfig.getPassword() == null || tDengineSourceConfig.getSql() == null )
+                tDengineSourceConfig.getPassword() == null || tDengineSourceConfig.getSql() == null ||
+                tDengineSourceConfig.getDatabase() == null || tDengineSourceConfig.getTableName() == null )
             throw new IllegalArgumentException("Required params not set.");
 
         HikariConfig hikariConfig = new HikariConfig();
