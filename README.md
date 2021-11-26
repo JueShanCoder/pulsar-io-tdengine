@@ -193,7 +193,6 @@ taos> insert into d1001 values("2020-08-15 12:00:00.000", 12, 220, 1),("2020-08-
 
 taos> use power_2;
 taos> select * from meters;
-taos> select * from meters;
 
            ts            |       current        |   voltage   |    phase    |            location            |   groupid   |
 ============================================================================================================================
