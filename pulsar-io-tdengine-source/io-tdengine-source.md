@@ -34,14 +34,13 @@ Before using the TDengine connector, you can create a configuration file through
 
     ```json
     {
-        "zkServers": "127.0.0.1:2181",
-        "batchSize": "5120",
-        "destination": "example",
-        "username": "",
-        "password": "",
-        "cluster": false,
-        "singleHostname": "127.0.0.1",
-        "singlePort": "11111",
+    "jdbcUrl":"jdbc:TAOS://tdengine-2.0.18.0:6030/power",
+    "username":"root",
+    "password":"taosdata",
+    "sql":"select * from meters",
+    "database": "power_2",
+    "tableName": "d1001",
+    "sTableName": "meters"
     }
     ```
 
@@ -51,14 +50,13 @@ Before using the TDengine connector, you can create a configuration file through
 
     ```yaml
     configs:
-        zkServers: "127.0.0.1:2181"
-        batchSize: 5120
-        destination: "example"
-        username: ""
-        password: ""
-        cluster: false
-        singleHostname: "127.0.0.1"
-        singlePort: 11111
+        jdbcUrl: "jdbc:TAOS://tdengine-2.0.18.0:6030/power"
+        username: "root"
+        password: "taosdata"
+        sql: "select * from meters"
+        database: "power_2"
+        tableName: "d1001"
+        sTableName: "meters"
     ```
   
 ## Usage
@@ -112,13 +110,13 @@ taos> create table d1002 using meters tags ("Beijing.Haidian", 2);
 docker exec -it pulsar-2.8.0 /bin/bash 
 ```
 
-8. Start the Pulsar TDengine connector in local run mode using one of the following methods.
+8. Start the Pulsar TDengine source connector in local run mode using one of the following methods.
 
-> Tips: Make sure the nar file is available at connectors/pulsar-io-tdengine-source-2.8.0.nar.
+> Tips: Make sure the nar file is available at connectors/pulsar-io-tdengine-source-2.8.0.nar
 
 - Use the JSON configuration file as shown previously.
 ```shell
-$ bin/pulsar-admin source localrun --destination-topic-name tdengine-source-topic --tenant public --namespace default --name pulsar-tdengine-source --archive connectors/pulsar-io-tdengine-source-2.8.0.nar --parallelism 1 --source-config '{ "jdbcUrl":"jdbc:TAOS://tdengine-2.0.18.0:6030/power", "userName":"root", "password":"taosdata", "sql":"select * from meters"}'
+$ bin/pulsar-admin source localrun --destination-topic-name tdengine-source-topic --tenant public --namespace default --name pulsar-tdengine-source --archive connectors/pulsar-io-tdengine-source-2.8.0.nar --parallelism 1 --source-config '{ "jdbcUrl":"jdbc:TAOS://tdengine-2.0.18.0:6030/power", "userName":"root", "password":"taosdata", "sql":"select * from meters", "database": "power_2", "tableName": "d1001", "sTableName": "meters" }'
 ```
 - Use the YAML configuration file as shown previously.
 

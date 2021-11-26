@@ -44,7 +44,7 @@ public class TDengineSourceConfig implements Serializable {
             sensitive = true,
             help = "Username used to connect to the database specified by `jdbcUrl`"
     )
-    private String userName;
+    private String username;
 
     @FieldDoc(
             required = true,

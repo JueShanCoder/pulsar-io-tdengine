@@ -29,11 +29,10 @@ Before using the TDengine sink connector, you need to create a configuration fil
 
     ```json
     {
-        "roots": "localhost:9042",
-        "keyspace": "pulsar_test_keyspace",
-        "columnFamily": "pulsar_test_table",
-        "keyname": "key",
-        "columnName": "col"
+    "driver":"com.taosdata.jdbc.TSDBDriver",
+    "jdbcUrl":"jdbc:TAOS://tdengine-2.0.18.0:6030",
+    "username":"root",
+    "password":"taosdata"
     }
     ```
 
@@ -42,11 +41,54 @@ Before using the TDengine sink connector, you need to create a configuration fil
 
     ```
     configs:
-        roots: "localhost:9042"
-        keyspace: "pulsar_test_keyspace"
-        columnFamily: "pulsar_test_table"
-        keyname: "key"
-        columnName: "col"
+        driver: "com.taosdata.jdbc.TSDBDriver",
+        jdbcUrl: "jdbc:TAOS://tdengine-2.0.18.0:6030",
+        username: "root",
+        password: "taosdata"
     ```
 
 ## Usage
+
+This example shows how to change the data of a TDengine table using the Pulsar TDengine connector.
+
+> Tips: We use docker for simulation testing
+
+1. Initialize docker cluster.
+```shell
+docker swarm init
+```
+
+2. Create new docker network
+```shell
+docker network create --attachable --driver overlay --subnet 10.1.0.0/16 --ip-range 10.1.0.0/24 tools
+```
+
+3. Start the TDengine container
+```shell
+docker run -d --name tdengine-2.0.18.0 --network tools tdengine/tdengine:2.0.18.0
+```
+
+4. Start the Pulsar container
+```shell
+ docker run -d --name pulsar-2.8.0 --network tools -m 3g -p 6650:6660 -p 6680:8080 --restart unless-stopped -v  pulsar-data:/pulsar/data -v pulsar-conf:/pulsar/conf apachepulsar/pulsar:2.8.0 ./bin/pulsar standalone
+```
+
+5. Enter the Pulsar container
+```shell
+docker exec -it pulsar-2.8.0 /bin/bash 
+```
+
+6. Start the Pulsar TDengine sink connector in local run mode using one of the following methods.
+
+> Tips: Make sure the nar file is available at connectors/pulsar-io-tdengine-sink-2.8.0.nar
+
+- Use the JSON configuration file as shown previously.
+```shell
+$ bin/pulsar-admin sinks localrun --name pulsar-tdengine-sink --tenant public --namespace default --inputs public/default/tdengine-source-topic --archive connectors/pulsar-io-tdengine-sink-2.8.0.nar --sink-config '{"driver":"com.taosdata.jdbc.TSDBDriver","jdbcUrl":"jdbc:TAOS://tdengine-2.0.18.0:6030/power_2","username":"root","password":"taosdata"}'
+```
+- Use the YAML configuration file as shown previously.
+
+```shell
+$ bin/pulsar-admin sinks localrun --sink-config-file io-tdengine-source-config.yaml
+```
+
